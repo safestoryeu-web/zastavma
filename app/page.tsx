@@ -7,9 +7,12 @@ const STORAGE_WAGE = 'zastavma_hourly_wage'
 const STORAGE_SAVED = 'zastavma_total_saved'
 
 function getSarkasmus(hours: number): string {
-  if (hours < 1) return 'To si zaslúžiš, kúp si to.'
-  if (hours < 8) return 'To je celý deň v robote. Fakt to potrebuješ?'
-  if (hours < 40) return 'Celý pracovný týždeň za toto? Si sa zbláznil?'
+  if (hours < 1) return 'To si zaslúžiš, kúp si to. Si lacný.';
+  if (hours < 7) return `To je skoro celý deň v robote. Fakt to potrebuješ?`;
+  if (hours < 11.9) return 'To je celý deň v robote. Fakt to potrebuješ?';
+  if (hours < 15.9) return 'Jeden a pol dňa v tej klietke za toto? Nerob to.';
+  if (hours < 39.9) return 'Dva celé dni života spláchnuté do záchoda. Si si istý?';
+  if (hours >= 40) return 'Celý pracovný týždeň za toto? Si sa zbláznil?';
   return 'To je kus tvojej slobody. Radšej to zavri.'
 }
 
@@ -31,6 +34,10 @@ export default function ZastavmaPage() {
   const [price, setPrice] = useState<string>('')
   const [totalSaved, setTotalSaved] = useState<number>(0)
   const [savedMessage, setSavedMessage] = useState(false)
+  const [showCalculator, setShowCalculator] = useState(false)
+  const [calcMzda, setCalcMzda] = useState<string>('')
+  const [calcHours, setCalcHours] = useState<string>('')
+  const [urciteMessage, setUrciteMessage] = useState(false)
 
   useEffect(() => {
     const w = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_WAGE) : null
@@ -43,10 +50,27 @@ export default function ZastavmaPage() {
   const priceNum = parseFloat(price.replace(',', '.')) || 0
   const hours = wageNum > 0 ? priceNum / wageNum : 0
   const hasResult = priceNum > 0 && wageNum > 0
+  const zeroWageCase = priceNum > 0 && wageNum === 0
+  const wageIs898 = Math.abs(wageNum - 8.98) < 0.01
 
   const handleWageBlur = () => {
     if (typeof window !== 'undefined' && wage.trim()) {
       localStorage.setItem(STORAGE_WAGE, wage.trim())
+    }
+  }
+
+  const handleCalcSubmit = () => {
+    const m = parseFloat(calcMzda.replace(',', '.')) || 0
+    const h = parseFloat(calcHours.replace(',', '.')) || 0
+    if (m > 0 && h > 0) {
+      const hourly = m / h
+      setWage(hourly.toFixed(2))
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_WAGE, String(hourly.toFixed(2)))
+      }
+      setShowCalculator(false)
+      setCalcMzda('')
+      setCalcHours('')
     }
   }
 
@@ -67,7 +91,7 @@ export default function ZastavmaPage() {
       <h1 style={styles.title}>Zastav Ma!</h1>
 
       <div style={styles.section}>
-        <label style={styles.label}>Čistá hodinová mzda (EUR)</label>
+        <label style={styles.label}>Približná čistá hodinová mzda</label>
         <input
           type="text"
           inputMode="decimal"
@@ -77,6 +101,38 @@ export default function ZastavmaPage() {
           onBlur={handleWageBlur}
           style={styles.input}
         />
+        <button
+          type="button"
+          onClick={() => setShowCalculator((v) => !v)}
+          style={styles.neviemBtn}
+        >
+          Neviem
+        </button>
+        {showCalculator && (
+          <div style={styles.calcBox}>
+            <label style={styles.label}>Čistá mzda (EUR)</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="napr. 1200"
+              value={calcMzda}
+              onChange={(e) => setCalcMzda(e.target.value)}
+              style={styles.input}
+            />
+            <label style={styles.label}>Počet odpracovaných hodín</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="napr. 160"
+              value={calcHours}
+              onChange={(e) => setCalcHours(e.target.value)}
+              style={styles.input}
+            />
+            <button type="button" onClick={handleCalcSubmit} style={styles.calcSubmitBtn}>
+              Vypočítaj
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={styles.section}>
@@ -91,31 +147,56 @@ export default function ZastavmaPage() {
         />
       </div>
 
-      {hasResult && (
+      {(hasResult || zeroWageCase) && (
         <>
           <p style={styles.result}>
-            Tento nákup ťa stojí <span style={styles.hours}>{hours.toFixed(1)}</span> hodín v práci
+            Tento nákup ťa stojí <span style={styles.hours}>{hasResult ? hours.toFixed(1) : '?'}</span> hodín v práci
           </p>
-          <p style={styles.sarkasmus}>{getSarkasmus(hours)}</p>
+          {hasResult && <p style={styles.sarkasmus}>{getSarkasmus(hours)}</p>}
 
-          <button
-            type="button"
-            onClick={handleSavedClick}
-            style={styles.saveBtn}
-          >
-            UŠETRIL SOM TO!
-          </button>
+          {zeroWageCase ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setUrciteMessage(true)}
+                style={styles.saveBtn}
+              >
+                Určite?
+              </button>
+              {urciteMessage && (
+                <p style={styles.savedMessage}>
+                  Čo Štefi nevidí, to srdce nebolí
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              {wageIs898 ? (
+                <button type="button" style={styles.saveBtn}>
+                  NIKDA!
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSavedClick}
+                  style={styles.saveBtn}
+                >
+                  UŠETRIL SOM TO!
+                </button>
+              )}
 
-          {savedMessage && (
-            <p style={styles.savedMessage}>
-              Dobrá práca! Tvoje budúce ja ti ďakuje.
-            </p>
-          )}
+              {savedMessage && (
+                <p style={styles.savedMessage}>
+                  Dobrá práca! Tvoje budúce ja ti ďakuje.
+                </p>
+              )}
 
-          {totalSaved > 0 && !savedMessage && (
-            <p style={styles.totalSaved}>
-              Celkovo ušetrené: <span style={styles.accent}>{totalSaved.toFixed(2)} €</span>
-            </p>
+              {totalSaved > 0 && !savedMessage && (
+                <p style={styles.totalSaved}>
+                  Celkovo ušetrené: <span style={styles.accent}>{totalSaved.toFixed(2)} €</span>
+                </p>
+              )}
+            </>
           )}
         </>
       )}
@@ -205,5 +286,30 @@ const styles: Record<string, React.CSSProperties> = {
   },
   accent: {
     color: '#ffff00',
+  },
+  neviemBtn: {
+    marginTop: '0.25rem',
+    padding: '0.5rem 1rem',
+    fontSize: '0.9rem',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.7)',
+    border: '2px solid #333',
+  },
+  calcBox: {
+    width: '100%',
+    marginTop: '1rem',
+    padding: '1rem',
+    border: '2px solid #333',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  calcSubmitBtn: {
+    marginTop: '0.5rem',
+    padding: '0.75rem',
+    fontSize: '1rem',
+    background: '#ffff00',
+    color: '#000',
+    border: 'none',
   },
 }
